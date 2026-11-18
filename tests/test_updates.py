@@ -15,8 +15,9 @@ GOOD_EXE = b"MZ" + b"\0" * (updates.MIN_SIZE + 10)
 
 
 class FakeResponse:
-    def __init__(self, status=200, body=b"", data=None):
+    def __init__(self, status=200, body=b"", data=None, headers=None):
         self.status_code, self.content, self._data = status, body, data
+        self.headers = headers or {}
         self.text = body.decode("latin-1")
 
     def json(self):
@@ -49,15 +50,12 @@ class FakeGitHub:
         pass
 
 
-def release_json(tag, exe_url=PREFIX + "v9.9.9/ParcelPing.exe",
-                 sha_url=PREFIX + "v9.9.9/ParcelPing.exe.sha256"):
-    return {"tag_name": tag, "html_url": f"https://github.com/MoeenKhan/ParcelPing/releases/tag/{tag}",
-            "assets": [{"name": "ParcelPing.exe", "browser_download_url": exe_url},
-                       {"name": "ParcelPing.exe.sha256", "browser_download_url": sha_url}]}
+REPO = "https://github.com/MoeenKhan/ParcelPing"
 
 
-def api(data):
-    return FakeGitHub({updates._api_url(): FakeResponse(data=data)})
+def latest_redirects_to(location, status=302):
+    """github.com/<repo>/releases/latest answering with a redirect."""
+    return FakeGitHub({f"{REPO}/releases/latest": FakeResponse(status, headers={"Location": location})})
 
 
 # ---- checking --------------------------------------------------------------
@@ -75,26 +73,42 @@ def test_is_newer(tag, current, newer):
 
 
 def test_latest_release_newer():
-    rel = updates.latest_release(api(release_json("v9.9.9")))
-    assert rel.version == "9.9.9"
-    assert rel.exe_url.endswith("/ParcelPing.exe")
-    assert rel.sha256_url.endswith("/ParcelPing.exe.sha256")
+    rel = updates.latest_release(latest_redirects_to(f"{REPO}/releases/tag/v9.9.9"))
+    assert rel == updates.Release(
+        "9.9.9", f"{REPO}/releases/tag/v9.9.9",
+        f"{REPO}/releases/download/v9.9.9/ParcelPing.exe",
+        f"{REPO}/releases/download/v9.9.9/ParcelPing.exe.sha256")
 
 
 def test_latest_release_not_newer():
-    assert updates.latest_release(api(release_json("v0.0.1"))) is None
+    assert updates.latest_release(latest_redirects_to(f"{REPO}/releases/tag/v0.0.1")) is None
 
 
-def test_downloads_only_from_this_repo():
-    rel = updates.latest_release(api(release_json(
-        "v9.9.9", exe_url="https://example.com/ParcelPing.exe")))
-    assert rel.version == "9.9.9"  # still offered as a download link...
-    assert rel.exe_url == "" and rel.sha256_url == ""  # ...but never installed
-    assert not updates.can_self_update(rel)
+def test_no_releases_yet():
+    # Without releases, /releases/latest redirects to the (empty) releases list.
+    assert updates.latest_release(latest_redirects_to(f"{REPO}/releases")) is None
 
 
-def test_api_error_means_no_update():
-    assert updates.latest_release(FakeGitHub({})) is None
+@pytest.mark.parametrize("location", [
+    "https://github.com/MoeenKhan/ParcelPing/releases/tag/../../evil",
+    "https://github.com/MoeenKhan/ParcelPing/releases/tag/v9.9.9/../x",
+    "https://example.com/somewhere-else",
+    "",
+])
+def test_odd_redirects_ignored(location):
+    assert updates.latest_release(latest_redirects_to(location)) is None
+
+
+def test_downloads_always_come_from_this_repo():
+    # Even if the redirect pointed elsewhere, files are fetched from this repo.
+    rel = updates.latest_release(latest_redirects_to("https://example.com/x/releases/tag/v9.9.9"))
+    assert rel.exe_url.startswith(f"{REPO}/releases/download/v9.9.9/")
+    assert rel.sha256_url.startswith(f"{REPO}/releases/download/v9.9.9/")
+
+
+@pytest.mark.parametrize("status", [200, 404, 429, 500])
+def test_no_redirect_means_no_update(status):
+    assert updates.latest_release(latest_redirects_to(f"{REPO}/releases/tag/v9.9.9", status)) is None
 
 
 # ---- downloading -----------------------------------------------------------

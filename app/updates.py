@@ -35,15 +35,14 @@ ASSET_NAME = f"{config.APP_NAME}.exe"
 MIN_SIZE = 5_000_000  # the real .exe is ~30 MB; anything tiny is an error page
 
 
-def _api_url() -> str:
+def _repo_url() -> str:
     # Override for local end-to-end tests of the updater.
-    return (os.environ.get("PARCELPING_UPDATE_API")
-            or f"https://api.github.com/repos/{config.GITHUB_REPO}/releases/latest")
+    return (os.environ.get("PARCELPING_UPDATE_REPO_URL")
+            or f"https://github.com/{config.GITHUB_REPO}").rstrip("/")
 
 
-def _asset_prefix() -> str:
-    return (os.environ.get("PARCELPING_UPDATE_ASSETS")
-            or f"https://github.com/{config.GITHUB_REPO}/releases/download/")
+# A release tag as it appears in the /releases/tag/<tag> redirect.
+_TAG = re.compile(r"/releases/tag/(v?\d+(?:\.\d+)*(?:-[0-9A-Za-z.]+)?)/?$")
 
 
 class UpdateError(Exception):
@@ -67,29 +66,33 @@ def is_newer(tag: str, current: str = __version__) -> bool:
 
 
 def latest_release(session=None) -> Release | None:
-    """The latest release if it's newer than this version, else None."""
+    """The latest release if it's newer than this version, else None.
+
+    Reads where github.com/<repo>/releases/latest redirects to, rather than
+    calling the GitHub API: the API allows only 60 anonymous requests an hour
+    per IP address, which a mobile network shared by many people (carrier
+    NAT) can use up.
+    """
     if not config.GITHUB_REPO:
         return None
+    repo = _repo_url()
     own = session is None
     session = session or new_session()
     try:
-        r = session.get(_api_url(), timeout=15, headers={
-            "Accept": "application/vnd.github+json", "User-Agent": config.APP_NAME})
-        if r.status_code != 200:
-            return None
-        data = r.json()
+        r = session.get(f"{repo}/releases/latest", allow_redirects=False, timeout=15,
+                        headers={"User-Agent": config.APP_NAME})
     finally:
         if own:
             session.close()
-    tag = data.get("tag_name", "")
-    if not is_newer(tag):
+    if r.status_code not in (301, 302, 303, 307, 308):
+        return None  # no releases yet, or GitHub unavailable
+    m = _TAG.search(r.headers.get("Location", ""))
+    if not m or not is_newer(m.group(1)):
         return None
-    assets = {a.get("name"): a.get("browser_download_url", "") for a in data.get("assets") or []}
-    exe_url, sha_url = assets.get(ASSET_NAME, ""), assets.get(f"{ASSET_NAME}.sha256", "")
-    # Only ever download files attached to this repo's own releases.
-    if not (exe_url.startswith(_asset_prefix()) and sha_url.startswith(_asset_prefix())):
-        exe_url = sha_url = ""
-    return Release(tag.lstrip("v"), data.get("html_url", ""), exe_url, sha_url)
+    tag = m.group(1)
+    # Always this repo's own release files, built from the tag.
+    download = f"{repo}/releases/download/{tag}/{ASSET_NAME}"
+    return Release(tag.lstrip("v"), f"{repo}/releases/tag/{tag}", download, f"{download}.sha256")
 
 
 # ---- self-update (built .exe only) ----------------------------------------------
