@@ -69,22 +69,17 @@ venv\Scripts\python scripts\smoke_test.py dist\ParcelPing.exe
 
 Every push and pull request runs the same steps on GitHub Actions (lint,
 tests, build, then a smoke test that starts the built .exe and checks it
-quits cleanly). The built .exe is attached to each run under **Artifacts**.
+quits cleanly). The built .exe is attached to each finished run under
+**Artifacts**.
 
 ### Releasing
 
-1. Set the new version in `app/__init__.py` (e.g. `1.0.1`) and commit it.
-2. Tag that commit and push the tag:
-
-   ```bat
-   git tag v1.0.1
-   git push origin main v1.0.1
-   ```
-
-The Release workflow checks the tag matches the version, runs everything
-above, and publishes `ParcelPing.exe` with its SHA-256 checksum on the
-Releases page, with notes generated from the commits since the last release.
-Tags with a suffix, like `v1.1.0-beta.1`, are published as pre-releases.
+Releases are automatic. Bump `__version__` in `app/__init__.py` (e.g. to
+`1.0.1`) and push to `main`. When CI sees a version that hasn't been released
+yet, it tags the commit and publishes `ParcelPing.exe` with its SHA-256
+checksum on the Releases page, with notes generated from the changes since the
+last release. Pushes that don't change the version only build and test.
+Versions with a suffix, like `1.1.0-beta.1`, are published as pre-releases.
 
 ### Project layout
 

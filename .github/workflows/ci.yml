@@ -1,19 +1,49 @@
 name: CI
 
+# Every push and pull request: lint, test, build and smoke-test the .exe.
+# On main, if app/__init__.py has a version with no release yet, the build is
+# published as that release automatically. To release: bump the version, push.
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
 
-# A newer push to the same branch or PR cancels the older run.
+# A newer push to the same PR cancels the older run. Runs on main always
+# finish, so a release is never cut off halfway.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
+  version:
+    name: Is this a new version?
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.check.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: check
+        shell: bash
+        run: |
+          version=$(python3 -c "import re; print(re.search(r'__version__\s*=\s*\"([^\"]+)\"', open('app/__init__.py').read()).group(1))")
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null; then
+            echo "v$version is already released; this push only builds."
+          else
+            echo "v$version has no release yet; this build will be published."
+            echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
+    needs: version
+    # Also runs when "version" was skipped (pull requests, other branches).
+    if: ${{ !cancelled() && needs.version.result != 'failure' }}
     uses: ./.github/workflows/build.yml
+    with:
+      release-tag: ${{ needs.version.outputs.tag }}
+    permissions:
+      contents: write  # create the release and upload the .exe
