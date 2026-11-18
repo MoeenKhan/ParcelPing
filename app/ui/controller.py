@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import threading
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QGuiApplication
 from PySide6.QtWidgets import QApplication, QInputDialog, QMenu, QMessageBox, QSystemTrayIcon
 
-from .. import config, updates
+from .. import __version__, config, updates
 from ..core.carriers import CARRIERS
 from ..core.checker import Backoff, Change, FetchResult, apply_result, due, fetch, parse_numbers_file
 from ..core.store import ACTIVE, PROBLEMS, Store
@@ -23,10 +24,14 @@ from .widgets import clock
 TICK_MS = 30_000
 
 
+UPDATE_CHECK_MS = 24 * 60 * 60 * 1000
+
+
 class _Signals(QObject):
     result = Signal(object)  # FetchResult
     done = Signal()
-    update_available = Signal(str, str)
+    update_available = Signal(object)  # updates.Release we can't install ourselves
+    update_ready = Signal(object, str)  # updates.Release, path of the verified .exe
 
 
 class Controller(QObject):
@@ -42,10 +47,14 @@ class Controller(QObject):
         self.notify_target: int | None = None
         self.quitting = False
         self.details: dict[int, DetailsDialog] = {}
+        self.updating = False  # an update check/download is running
+        self.ready_update: tuple[updates.Release, str] | None = None
 
         self.sig = _Signals()
         self.sig.result.connect(self._on_result)
         self.sig.done.connect(self._on_done)
+        self.sig.update_available.connect(self._update_available)
+        self.sig.update_ready.connect(self._update_ready)
 
         self._import_legacy_numbers()
 
@@ -56,18 +65,22 @@ class Controller(QObject):
             pass
 
         self.window = MainWindow(self)
-        self.sig.update_available.connect(self.window.show_update)
         self._build_tray()
 
         self.timer = QTimer(self, interval=TICK_MS, timeout=self.check)
         self.timer.start()
+        self.update_timer = QTimer(self, interval=UPDATE_CHECK_MS, timeout=self.check_for_update)
+        self.update_timer.start()
         self.window.refresh()
         self._update_status()
 
-    def start(self) -> None:
+    def start(self, just_updated: bool = False) -> None:
         QTimer.singleShot(500, self.check)
-        if config.GITHUB_REPO and self.store.setting("check_updates"):
-            threading.Thread(target=self._check_updates, daemon=True).start()
+        QTimer.singleShot(3000, self.check_for_update)
+        if just_updated and self.tray:
+            self.notify_target = None
+            self.tray.showMessage(config.APP_NAME, f"Updated to {config.APP_NAME} {__version__}.",
+                                  app_icon(), 8000)
 
     # ---- tray ---------------------------------------------------------------
 
@@ -126,6 +139,7 @@ class Controller(QObject):
                                   "Still checking your parcels in the background. "
                                   "Right-click the tray icon to quit.",
                                   app_icon(), 8000)
+        QTimer.singleShot(0, self._maybe_auto_install)
         return True
 
     def show_window(self) -> None:
@@ -209,6 +223,7 @@ class Controller(QObject):
             ids, self.queued_ids = self.queued_ids, set()
             self.check(ids=ids)
         self._update_status()
+        self._maybe_auto_install()
 
     def _shipment_changed(self, sid: int) -> None:
         s = self.store.get(sid)
@@ -361,13 +376,69 @@ class Controller(QObject):
         if self.store.setting("theme") == "system":
             self._apply_theme()
 
-    def _check_updates(self) -> None:
-        try:
-            found = updates.newer_release()
-        except Exception:  # noqa: BLE001 - update checks must never break the app
+    # ---- updates ------------------------------------------------------------
+
+    def check_for_update(self) -> None:
+        if (self.updating or self.ready_update or not config.GITHUB_REPO
+                or not self.store.setting("check_updates")):
             return
-        if found:
-            self.sig.update_available.emit(*found)
+        self.updating = True
+        threading.Thread(target=self._update_work, daemon=True).start()
+
+    def _update_work(self) -> None:
+        """Background thread: find, download and verify a newer release."""
+        try:
+            release = updates.latest_release()
+            if release is None:
+                return
+            if updates.can_self_update(release):
+                try:
+                    path = updates.download(release)
+                except Exception:  # noqa: BLE001 - fall back to the download link
+                    self.sig.update_available.emit(release)
+                    return
+                self.sig.update_ready.emit(release, str(path))
+            else:
+                self.sig.update_available.emit(release)
+        except Exception:  # noqa: BLE001 - update checks must never break the app
+            pass
+        finally:
+            self.updating = False
+
+    def _update_available(self, release: updates.Release) -> None:
+        self.window.show_update(release.version, release.page_url)
+
+    def _update_ready(self, release: updates.Release, path: str) -> None:
+        self.ready_update = (release, path)
+        self.window.show_update_ready(release.version, release.page_url)
+        if self.store.setting("auto_update"):
+            self._maybe_auto_install()
+        elif self.tray:
+            self.notify_target = None
+            self.tray.showMessage(config.APP_NAME,
+                                  f"Version {release.version} is ready. Open {config.APP_NAME} "
+                                  "and click \"Restart to update\".", app_icon(), 10000)
+
+    def _maybe_auto_install(self) -> None:
+        """With automatic updates on, install while you're not using the window."""
+        if (self.ready_update and self.store.setting("auto_update")
+                and not self.running and not self.window.isVisible()):
+            self.install_update()
+
+    def install_update(self) -> None:
+        if not self.ready_update:
+            return
+        release, path = self.ready_update
+        args = ["--updated"] + ([] if self.window.isVisible() else ["--minimized"])
+        try:
+            updates.install(Path(path), args=args)
+        except Exception:  # noqa: BLE001 - keep running the current version
+            self.ready_update = None
+            self.window.show_update(release.version, release.page_url)
+            self.window.flash("Couldn't install the update. You can download it from the "
+                              "release page instead.", error=True)
+            return
+        self.quit()
 
     def _import_legacy_numbers(self) -> None:
         """One-time import of tracking_numbers.txt from the old console version."""

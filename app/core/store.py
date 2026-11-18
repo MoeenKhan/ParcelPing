@@ -26,6 +26,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "legacy_imported": False,
     "tray_hint_shown": False,
     "check_updates": True,
+    "auto_update": False,  # install downloaded updates without asking
 }
 
 

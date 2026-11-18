@@ -126,6 +126,8 @@ def apply(app: QApplication, mode: str) -> None:
     pal.setColor(QPalette.Highlight, QColor(t["accent"]))
     pal.setColor(QPalette.HighlightedText, QColor(t["accent_text"]))
     pal.setColor(QPalette.PlaceholderText, QColor(t["muted"]))
+    pal.setColor(QPalette.Link, QColor(t["accent"]))
+    pal.setColor(QPalette.LinkVisited, QColor(t["accent"]))
     pal.setColor(QPalette.ToolTipBase, QColor(t["surface"]))
     pal.setColor(QPalette.ToolTipText, QColor(t["text"]))
     app.setPalette(pal)

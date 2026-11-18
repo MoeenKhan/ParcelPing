@@ -54,9 +54,14 @@ class SettingsDialog(QDialog):
         self.autostart.setChecked(autostart.is_enabled())
         self.autostart.setVisible(sys.platform == "win32")
 
-        self.updates = QCheckBox("Tell me when a new version is available")
+        self.updates = QCheckBox("Check for new versions")
         self.updates.setChecked(bool(store.setting("check_updates")))
         self.updates.setVisible(bool(config.GITHUB_REPO))
+        self.auto_update = QCheckBox("Install them automatically (while the window is closed)")
+        self.auto_update.setChecked(bool(store.setting("auto_update")))
+        self.auto_update.setVisible(bool(config.GITHUB_REPO))
+        self.auto_update.setEnabled(self.updates.isChecked())
+        self.updates.toggled.connect(self.auto_update.setEnabled)
 
         form = QFormLayout()
         form.setLabelAlignment(Qt.AlignRight)
@@ -68,6 +73,7 @@ class SettingsDialog(QDialog):
         form.addRow("Theme", self.theme)
         form.addRow("", self.autostart)
         form.addRow("", self.updates)
+        form.addRow("", self.auto_update)
 
         data = config.data_dir()
         data_row = QHBoxLayout()
@@ -114,5 +120,6 @@ class SettingsDialog(QDialog):
         s.set_setting("notify", self.notify.currentData())
         s.set_setting("theme", self.theme.currentData())
         s.set_setting("check_updates", self.updates.isChecked())
+        s.set_setting("auto_update", self.auto_update.isChecked())
         if sys.platform == "win32" and self.autostart.isChecked() != autostart.is_enabled():
             autostart.set_enabled(self.autostart.isChecked())

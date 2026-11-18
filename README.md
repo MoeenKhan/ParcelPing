@@ -37,6 +37,15 @@ website, or remove it. Settings let you choose how often to check, whether
 to be notified about every update or only major steps, the theme, and
 starting with Windows.
 
+### Updates
+
+ParcelPing checks for a new version once a day and downloads it in the
+background. It checks the download against the release's published SHA-256
+checksum before using it. Then it shows **Restart to update**. Turn on
+*Install them automatically* in Settings to have it update itself while the
+window is closed. If ParcelPing is in a folder it can't write to (like
+Program Files), it links to the download page instead.
+
 ### Windows SmartScreen warning
 
 The .exe isn't code-signed yet, so Windows may show "Windows protected your
