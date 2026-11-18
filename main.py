@@ -20,7 +20,7 @@ from PySide6.QtGui import QFont
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication
 
-from app import config
+from app import config, updates
 from app.core.store import Store
 from app.ui.controller import Controller
 from app.ui.icon import app_icon
@@ -42,7 +42,21 @@ def _already_running() -> bool:
     return False
 
 
+def _arg_value(name: str) -> str | None:
+    if name in sys.argv:
+        i = sys.argv.index(name)
+        if i + 1 < len(sys.argv):
+            return sys.argv[i + 1]
+    return None
+
+
 def main() -> int:
+    # Started by an update: let the previous copy exit first.
+    pid = _arg_value("--wait-pid")
+    if pid and pid.isdigit():
+        updates.wait_for_pid(int(pid))
+    updates.cleanup()
+
     if sys.platform == "win32":
         # Own taskbar identity (and icon) instead of python.exe's.
         import ctypes
@@ -67,7 +81,7 @@ def main() -> int:
 
     if "--minimized" not in sys.argv or controller.tray is None:
         controller.show_window()
-    controller.start()
+    controller.start(just_updated="--updated" in sys.argv)
     if os.environ.get("PARCELPING_SMOKE_TEST"):
         # Used by CI on the built .exe: start fully, then quit cleanly.
         QTimer.singleShot(3000, controller.quit)

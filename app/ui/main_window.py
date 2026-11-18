@@ -99,7 +99,8 @@ class MainWindow(QMainWindow):
         self._message_timer = QTimer(self, singleShot=True, timeout=self.message.hide)
 
         self.update_banner = QLabel(objectName="Banner")
-        self.update_banner.setOpenExternalLinks(True)
+        self.update_banner.setWordWrap(True)
+        self.update_banner.linkActivated.connect(self._update_link)
         self.update_banner.hide()
 
         # ---- tabs + list ----
@@ -307,6 +308,17 @@ class MainWindow(QMainWindow):
     def show_update(self, version: str, url: str) -> None:
         self.update_banner.setText(f'Version {version} is available. <a href="{url}">Download</a>')
         self.update_banner.show()
+
+    def show_update_ready(self, version: str, url: str) -> None:
+        self.update_banner.setText(f'Version {version} is ready. <a href="install">Restart to update</a>'
+                                   f' · <a href="{url}">What\'s new</a>')
+        self.update_banner.show()
+
+    def _update_link(self, href: str) -> None:
+        if href == "install":
+            self.c.install_update()
+        else:
+            self.open_url(href)
 
     def set_status(self, text: str, checking: bool) -> None:
         self.status.setText(text)

@@ -1,0 +1,193 @@
+"""Updater: release check, download verification and the in-place swap.
+
+Uses a fake GitHub (no network) and dummy files instead of a real .exe.
+"""
+
+import hashlib
+import subprocess
+
+import pytest
+
+from app import updates
+
+PREFIX = "https://github.com/MoeenKhan/ParcelPing/releases/download/"
+GOOD_EXE = b"MZ" + b"\0" * (updates.MIN_SIZE + 10)
+
+
+class FakeResponse:
+    def __init__(self, status=200, body=b"", data=None):
+        self.status_code, self.content, self._data = status, body, data
+        self.text = body.decode("latin-1")
+
+    def json(self):
+        return self._data
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise RuntimeError(f"HTTP {self.status_code}")
+
+    def iter_content(self, chunk_size=1):
+        for i in range(0, len(self.content), chunk_size):
+            yield self.content[i:i + chunk_size]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+class FakeGitHub:
+    def __init__(self, routes):
+        self.routes, self.requested = routes, []
+
+    def get(self, url, **kw):
+        self.requested.append(url)
+        return self.routes.get(url) or FakeResponse(404)
+
+    def close(self):
+        pass
+
+
+def release_json(tag, exe_url=PREFIX + "v9.9.9/ParcelPing.exe",
+                 sha_url=PREFIX + "v9.9.9/ParcelPing.exe.sha256"):
+    return {"tag_name": tag, "html_url": f"https://github.com/MoeenKhan/ParcelPing/releases/tag/{tag}",
+            "assets": [{"name": "ParcelPing.exe", "browser_download_url": exe_url},
+                       {"name": "ParcelPing.exe.sha256", "browser_download_url": sha_url}]}
+
+
+def api(data):
+    return FakeGitHub({updates._api_url(): FakeResponse(data=data)})
+
+
+# ---- checking --------------------------------------------------------------
+
+@pytest.mark.parametrize("tag,current,newer", [
+    ("v1.1.0", "1.0.0", True),
+    ("v1.0.10", "1.0.9", True),
+    ("v2.0.0", "1.9.9", True),
+    ("v1.0.0", "1.0.0", False),
+    ("v0.9.0", "1.0.0", False),
+    ("", "1.0.0", False),
+])
+def test_is_newer(tag, current, newer):
+    assert updates.is_newer(tag, current) is newer
+
+
+def test_latest_release_newer():
+    rel = updates.latest_release(api(release_json("v9.9.9")))
+    assert rel.version == "9.9.9"
+    assert rel.exe_url.endswith("/ParcelPing.exe")
+    assert rel.sha256_url.endswith("/ParcelPing.exe.sha256")
+
+
+def test_latest_release_not_newer():
+    assert updates.latest_release(api(release_json("v0.0.1"))) is None
+
+
+def test_downloads_only_from_this_repo():
+    rel = updates.latest_release(api(release_json(
+        "v9.9.9", exe_url="https://example.com/ParcelPing.exe")))
+    assert rel.version == "9.9.9"  # still offered as a download link...
+    assert rel.exe_url == "" and rel.sha256_url == ""  # ...but never installed
+    assert not updates.can_self_update(rel)
+
+
+def test_api_error_means_no_update():
+    assert updates.latest_release(FakeGitHub({})) is None
+
+
+# ---- downloading -----------------------------------------------------------
+
+def _download(tmp_path, exe_bytes, sha_text):
+    rel = updates.Release("9.9.9", "page", PREFIX + "exe", PREFIX + "sha")
+    gh = FakeGitHub({PREFIX + "exe": FakeResponse(body=exe_bytes),
+                     PREFIX + "sha": FakeResponse(body=sha_text.encode())})
+    exe = tmp_path / "ParcelPing.exe"
+    exe.write_bytes(b"MZ current")
+    return updates.download(rel, exe=exe, session=gh)
+
+
+def test_download_verified(tmp_path):
+    digest = hashlib.sha256(GOOD_EXE).hexdigest()
+    new = _download(tmp_path, GOOD_EXE, f"{digest}  ParcelPing.exe\n")
+    assert new.name == "ParcelPing.new.exe"
+    assert new.read_bytes() == GOOD_EXE
+    assert not (tmp_path / "ParcelPing.exe.download").exists()
+
+
+def test_download_checksum_mismatch_rejected(tmp_path):
+    with pytest.raises(updates.UpdateError, match="checksum"):
+        _download(tmp_path, GOOD_EXE, "0" * 64 + "  ParcelPing.exe")
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["ParcelPing.exe"]
+
+
+def test_download_not_a_program_rejected(tmp_path):
+    page = b"<html>" + b"x" * updates.MIN_SIZE
+    with pytest.raises(updates.UpdateError, match="Windows program"):
+        _download(tmp_path, page, hashlib.sha256(page).hexdigest())
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["ParcelPing.exe"]
+
+
+def test_download_missing_checksum_rejected(tmp_path):
+    with pytest.raises(updates.UpdateError, match="checksum"):
+        _download(tmp_path, GOOD_EXE, "not a checksum")
+
+
+# ---- installing ------------------------------------------------------------
+
+@pytest.fixture
+def launches(monkeypatch):
+    calls = []
+    monkeypatch.setattr(subprocess, "Popen", lambda args, **kw: calls.append((args, kw)))
+    return calls
+
+
+def test_install_swaps_and_restarts(tmp_path, launches):
+    exe = tmp_path / "ParcelPing.exe"
+    exe.write_bytes(b"old version")
+    new = tmp_path / "ParcelPing.new.exe"
+    new.write_bytes(b"new version")
+
+    updates.install(new, exe=exe, args=["--updated", "--minimized"])
+
+    assert exe.read_bytes() == b"new version"
+    assert (tmp_path / "ParcelPing.old.exe").read_bytes() == b"old version"
+    assert not new.exists()
+    (args, kw), = launches
+    assert args[0] == str(exe)
+    assert args[1:3] == ["--updated", "--minimized"]
+    assert args[3] == "--wait-pid"
+    assert kw["env"]["PYINSTALLER_RESET_ENVIRONMENT"] == "1"
+
+
+def test_install_failure_keeps_working_copy(tmp_path, launches):
+    exe = tmp_path / "ParcelPing.exe"
+    exe.write_bytes(b"old version")
+    missing = tmp_path / "ParcelPing.new.exe"  # e.g. deleted by antivirus
+
+    with pytest.raises(OSError):
+        updates.install(missing, exe=exe)
+
+    assert exe.read_bytes() == b"old version"
+    assert not launches
+
+
+def test_cleanup_removes_leftovers(tmp_path):
+    exe = tmp_path / "ParcelPing.exe"
+    exe.write_bytes(b"current")
+    for name in ("ParcelPing.old.exe", "ParcelPing.new.exe", "ParcelPing.exe.download"):
+        (tmp_path / name).write_bytes(b"leftover")
+    updates.cleanup(exe)
+    import time
+    for _ in range(50):
+        if sorted(p.name for p in tmp_path.iterdir()) == ["ParcelPing.exe"]:
+            break
+        time.sleep(0.05)
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["ParcelPing.exe"]
+
+
+def test_not_frozen_never_self_updates():
+    rel = updates.Release("9.9.9", "page", PREFIX + "exe", PREFIX + "sha")
+    assert updates.current_exe() is None  # tests run from source
+    assert not updates.can_self_update(rel)
