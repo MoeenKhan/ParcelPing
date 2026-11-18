@@ -9,12 +9,13 @@ from __future__ import annotations
 import re
 from types import ModuleType
 
-from . import dex, leopards
+from . import dex, leopards, tcs
 from .base import TrackingEvent
 
 CARRIERS: dict[str, ModuleType] = {
     "leopards": leopards,
     "dex": dex,
+    "tcs": tcs,
 }
 
 

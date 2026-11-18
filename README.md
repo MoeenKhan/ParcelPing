@@ -17,6 +17,7 @@ anything changes. It lives in the system tray and checks in the background.
 |---|---|
 | Leopards | Pakistan |
 | DEX (Daraz Express) | Pakistan |
+| TCS | Pakistan |
 
 More couriers can be added; see [Adding a courier](#adding-a-courier).
 
