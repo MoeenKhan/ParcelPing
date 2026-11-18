@@ -16,9 +16,9 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -44,7 +44,7 @@ jobs:
         run: cd dist && sha256sum ParcelPing.exe > ParcelPing.exe.sha256 && cat ParcelPing.exe.sha256
 
       - name: Upload build
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           # PR refs contain "/", which artifact names can't, so use the run number.
           name: ${{ inputs.release-tag && format('ParcelPing-{0}', inputs.release-tag) || format('ParcelPing-build-{0}', github.run_number) }}
