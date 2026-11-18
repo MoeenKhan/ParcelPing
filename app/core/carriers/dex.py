@@ -10,10 +10,8 @@ from __future__ import annotations
 import re
 from datetime import datetime
 
-import requests
-
 from ..stages import Stage
-from .base import TIMEOUT, USER_AGENT, TrackingEvent
+from .base import TIMEOUT, SharedSession, TrackingEvent
 
 NAME = "DEX"
 BADGE_COLOR = "#3B6FD8"
@@ -89,13 +87,17 @@ def describe(status: str) -> tuple[str, Stage]:
     return code.removeprefix("domestic_").replace("_", " ").capitalize(), Stage.UNKNOWN
 
 
+_http = SharedSession()
+
+
 def fetch_events(number: str) -> list[TrackingEvent]:
-    r = requests.post(
-        HISTORY_API,
-        json={"trackingNumber": number},
-        headers={"User-Agent": USER_AGENT, "Referer": public_url(number)},
-        timeout=TIMEOUT,
-    )
+    with _http as session:
+        r = session.post(
+            HISTORY_API,
+            json={"trackingNumber": number},
+            headers={"Referer": public_url(number)},
+            timeout=TIMEOUT,
+        )
     r.raise_for_status()
     try:
         payload = r.json()

@@ -10,8 +10,8 @@ from PySide6.QtGui import QAction, QGuiApplication
 from PySide6.QtWidgets import QApplication, QInputDialog, QMenu, QMessageBox, QSystemTrayIcon
 
 from .. import config, updates
-from ..core.checker import Backoff, Change, FetchResult, apply_result, due, fetch, parse_numbers_file
 from ..core.carriers import CARRIERS
+from ..core.checker import Backoff, Change, FetchResult, apply_result, due, fetch, parse_numbers_file
 from ..core.store import ACTIVE, PROBLEMS, Store
 from . import theme
 from .details import DetailsDialog
@@ -93,6 +93,7 @@ class Controller(QObject):
         tray.messageClicked.connect(self._notification_clicked)
         tray.show()
         self._tray_menu = menu  # keep a reference
+        self._tray_alert = False
         self.tray = tray
 
     def _tray_activated(self, reason) -> None:
@@ -197,6 +198,7 @@ class Controller(QObject):
     def _on_done(self) -> None:
         self.running = False
         changes, self.pending = self.pending, []
+        self.window.refresh()  # re-sort once per batch
         self._notify(changes)
         self._update_tray()
         if self.queued_force:
@@ -209,10 +211,13 @@ class Controller(QObject):
         self._update_status()
 
     def _shipment_changed(self, sid: int) -> None:
-        self.window.refresh()
-        dlg = self.details.get(sid)
         s = self.store.get(sid)
-        if dlg and s:
+        if s is None:
+            self.window.refresh()
+            return
+        self.window.update_shipment(s)
+        dlg = self.details.get(sid)
+        if dlg:
             dlg.update_from(s)
 
     # ---- notifications ------------------------------------------------------
@@ -250,8 +255,12 @@ class Controller(QObject):
         tip = f"{config.APP_NAME}: {active} on the way"
         if problems:
             tip += f", {problems} need attention"
-        self.tray.setToolTip(tip)
-        self.tray.setIcon(app_icon(alert=problems > 0))
+        if tip != self.tray.toolTip():
+            self.tray.setToolTip(tip)
+        alert = problems > 0
+        if alert != self._tray_alert:
+            self._tray_alert = alert
+            self.tray.setIcon(app_icon(alert=alert))
 
     def _update_status(self) -> None:
         if self.running:

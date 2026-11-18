@@ -1,0 +1,19 @@
+# Monthly pull requests to update pinned dependencies. Each one runs CI,
+# which builds and smoke-tests the .exe, so a breaking update shows up there.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      python:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]

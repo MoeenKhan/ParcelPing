@@ -1,3 +1,5 @@
-requests
-beautifulsoup4
-PySide6-Essentials
+# Exact versions so every build bundles the same thing; Dependabot proposes updates.
+requests==2.34.2
+certifi==2026.4.22
+beautifulsoup4==4.14.3
+PySide6-Essentials==6.12.0

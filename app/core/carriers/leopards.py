@@ -10,11 +10,10 @@ from __future__ import annotations
 import re
 from datetime import datetime
 
-import requests
 from bs4 import BeautifulSoup
 
 from ..stages import Stage
-from .base import TIMEOUT, USER_AGENT, TrackingEvent
+from .base import TIMEOUT, SharedSession, TrackingEvent
 
 NAME = "Leopards"
 BADGE_COLOR = "#D9822B"
@@ -67,30 +66,36 @@ def _extract_token(html: str) -> str:
     return m.group(1)
 
 
+_http = SharedSession()
+
+
 def fetch_events(number: str) -> list[TrackingEvent]:
-    session = requests.Session()
-    headers = {"User-Agent": USER_AGENT}
+    with _http as session:
+        # The looked-up number lives in the site's session cookie; start clean
+        # so one parcel's page can never be read as another's.
+        session.cookies.clear()
 
-    r = session.get(TRACKING_PAGE, headers=headers, timeout=TIMEOUT)
-    r.raise_for_status()
-    token = _extract_token(r.text)
+        r = session.get(TRACKING_PAGE, timeout=TIMEOUT)
+        r.raise_for_status()
+        token = _extract_token(r.text)
 
-    r = session.get(
-        TRACK_API,
-        params={"cn_number": number, "_token": token},
-        headers={**headers, "X-Requested-With": "XMLHttpRequest", "Referer": TRACKING_PAGE},
-        timeout=TIMEOUT,
-    )
-    r.raise_for_status()
-    try:
-        if not r.json().get("success"):
+        r = session.get(
+            TRACK_API,
+            params={"cn_number": number, "_token": token},
+            headers={"X-Requested-With": "XMLHttpRequest", "Referer": TRACKING_PAGE},
+            timeout=TIMEOUT,
+        )
+        r.raise_for_status()
+        try:
+            if not r.json().get("success"):
+                return []
+        except ValueError:
             return []
-    except ValueError:
-        return []
 
-    r = session.get(TRACKING_PAGE, headers=headers, timeout=TIMEOUT)
-    r.raise_for_status()
-    events = parse_events(r.text)
+        r = session.get(TRACKING_PAGE, timeout=TIMEOUT)
+        r.raise_for_status()
+        html = r.text
+    events = parse_events(html)
     events.sort(key=lambda e: e.when or datetime.min, reverse=True)
     return events
 

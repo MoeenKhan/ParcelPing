@@ -12,8 +12,10 @@ version. It is distributed WITHOUT ANY WARRANTY; see the LICENSE file.
 from __future__ import annotations
 
 import getpass
+import os
 import sys
 
+from PySide6.QtCore import QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication
@@ -66,6 +68,9 @@ def main() -> int:
     if "--minimized" not in sys.argv or controller.tray is None:
         controller.show_window()
     controller.start()
+    if os.environ.get("PARCELPING_SMOKE_TEST"):
+        # Used by CI on the built .exe: start fully, then quit cleanly.
+        QTimer.singleShot(3000, controller.quit)
     return app.exec()
 
 

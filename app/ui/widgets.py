@@ -7,13 +7,19 @@ from datetime import datetime
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QGuiApplication, QKeySequence, QPainter, QPen
 from PySide6.QtWidgets import (
-    QFrame, QHBoxLayout, QLabel, QLineEdit, QMenu, QSizePolicy, QVBoxLayout, QWidget,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMenu,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
 )
 
 from ..core.stages import PROGRESS, PROGRESS_SHORT, Stage
 from ..core.store import Shipment
 from . import theme
-
 
 # ---- formatting -------------------------------------------------------------
 

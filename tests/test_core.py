@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 import pytest
 
 from app.core import checker
-from app.core.carriers import dex, leopards, detect, split_numbers
+from app.core.carriers import detect, dex, leopards, split_numbers
 from app.core.carriers.base import TrackingEvent
 from app.core.checker import Backoff, FetchResult, apply_result, due, parse_numbers_file
 from app.core.stages import Stage

@@ -48,8 +48,14 @@ def render(size: int, alert: bool = False) -> QPixmap:
     return pm
 
 
+_icons: dict[bool, QIcon] = {}
+
+
 def app_icon(alert: bool = False) -> QIcon:
-    icon = QIcon()
-    for size in SIZES:
-        icon.addPixmap(render(size, alert))
-    return icon
+    """Drawn once per variant, then reused."""
+    if alert not in _icons:
+        icon = QIcon()
+        for size in SIZES:
+            icon.addPixmap(render(size, alert))
+        _icons[alert] = icon
+    return _icons[alert]

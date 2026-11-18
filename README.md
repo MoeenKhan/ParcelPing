@@ -60,10 +60,31 @@ Or manually:
 ```bat
 python -m venv venv
 venv\Scripts\pip install -r requirements-dev.txt
+venv\Scripts\python -m ruff check .
 venv\Scripts\python -m pytest
 venv\Scripts\python main.py
 venv\Scripts\python build.py
+venv\Scripts\python scripts\smoke_test.py dist\ParcelPing.exe
 ```
+
+Every push and pull request runs the same steps on GitHub Actions (lint,
+tests, build, then a smoke test that starts the built .exe and checks it
+quits cleanly). The built .exe is attached to each run under **Artifacts**.
+
+### Releasing
+
+1. Set the new version in `app/__init__.py` (e.g. `1.0.1`) and commit it.
+2. Tag that commit and push the tag:
+
+   ```bat
+   git tag v1.0.1
+   git push origin main v1.0.1
+   ```
+
+The Release workflow checks the tag matches the version, runs everything
+above, and publishes `ParcelPing.exe` with its SHA-256 checksum on the
+Releases page, with notes generated from the commits since the last release.
+Tags with a suffix, like `v1.1.0-beta.1`, are published as pre-releases.
 
 ### Project layout
 
@@ -75,7 +96,9 @@ app/core/carriers/         one module per courier
 app/core/store.py          SQLite storage
 app/core/checker.py        change detection, backoff, scheduling
 app/ui/                    PySide6 window, cards, details, settings, tray
-tests/                     pytest suite for the core
+tests/                     pytest suite (core logic, plus main-window updates)
+scripts/smoke_test.py      starts a built .exe with sample data, checks it runs
+build.py                   PyInstaller build, minus Qt files the app never loads
 ```
 
 ### Adding a courier

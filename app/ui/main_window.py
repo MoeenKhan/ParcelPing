@@ -8,8 +8,18 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
-    QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QPushButton, QScrollArea,
-    QSizePolicy, QTabBar, QVBoxLayout, QWidget,
+    QComboBox,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QTabBar,
+    QVBoxLayout,
+    QWidget,
 )
 
 from .. import config
@@ -36,10 +46,13 @@ def _sort_key(s: Shipment):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, controller: "Controller"):
+    def __init__(self, controller: Controller):
         super().__init__()
         self.c = controller
-        self.cards: dict[int, ShipmentCard] = {}
+        self.cards: dict[int, ShipmentCard] = {}  # cards in the current tab
+        self._categories: dict[int, str] = {}  # every parcel's tab at last refresh
+        self._stale = False  # a refresh was skipped while hidden
+        self._stale_rebuild = False
         self.setWindowTitle(config.APP_NAME)
         self.setWindowIcon(app_icon())
         self.resize(540, 700)
@@ -146,11 +159,22 @@ class MainWindow(QMainWindow):
         return TABS[self.tabs.currentIndex()][0]
 
     def refresh(self, rebuild: bool = False) -> None:
+        """Re-sort and redraw the current tab. Deferred while the window is hidden."""
+        if not self.isVisible():
+            self._stale = True
+            self._stale_rebuild |= rebuild
+            return
+        rebuild |= self._stale_rebuild
+        self._stale = self._stale_rebuild = False
+
         now = datetime.now()
         shipments = self.c.store.shipments()
         by_cat: dict[str, list[Shipment]] = {k: [] for k, _ in TABS}
+        self._categories = {}
         for s in shipments:
-            by_cat[s.category(now)].append(s)
+            cat = s.category(now)
+            by_cat[cat].append(s)
+            self._categories[s.id] = cat
         for i, (key, label) in enumerate(TABS):
             n = len(by_cat[key])
             self.tabs.setTabText(i, f"{label} ({n})" if n else label)
@@ -192,6 +216,29 @@ class MainWindow(QMainWindow):
             self.empty.setText(EMPTY_TEXT[self.current_category()].format(days=config.ARCHIVE_AFTER_DAYS))
             self.list.addWidget(self.empty, 1)
             self.empty.show()
+
+    def update_shipment(self, s: Shipment) -> None:
+        """One parcel changed (e.g. a check result): update just its card.
+
+        The full re-sort waits for the end of the batch, so checking N parcels
+        costs N card updates rather than N full redraws.
+        """
+        if not self.isVisible():
+            self._stale = True
+            return
+        now = datetime.now()
+        cat = s.category(now)
+        if cat != self._categories.get(s.id):
+            self.refresh()  # moved to another tab: counts and lists change
+            return
+        card = self.cards.get(s.id)
+        if card is not None:
+            card.update_from(s, now)
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        if self._stale:
+            self.refresh()
 
     def show_category(self, key: str) -> None:
         self.tabs.setCurrentIndex([k for k, _ in TABS].index(key))
