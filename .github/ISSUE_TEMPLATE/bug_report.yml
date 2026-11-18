@@ -1,0 +1,34 @@
+name: Bug report
+description: Something isn't working.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Please don't post real tracking numbers, names or addresses.** Issues are
+        public. Blur them out of any screenshots.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: input
+    id: courier
+    attributes:
+      label: Courier (if it's about one parcel)
+      placeholder: e.g. Leopards
+  - type: input
+    id: version
+    attributes:
+      label: ParcelPing version
+      description: Shown at the bottom of Settings.
+      placeholder: e.g. 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: e.g. Windows 11 23H2

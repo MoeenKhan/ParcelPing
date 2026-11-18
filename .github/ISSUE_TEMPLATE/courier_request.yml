@@ -1,0 +1,45 @@
+name: Request a courier
+description: Ask for support for a courier ParcelPing doesn't track yet.
+labels: ["courier request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Please don't post a real tracking number here.** Issues are public, and a
+        tracking number can reveal your name, address and phone number on the
+        courier's website. Describe the number's format instead.
+  - type: input
+    id: courier
+    attributes:
+      label: Courier name
+      placeholder: e.g. TCS
+    validations:
+      required: true
+  - type: input
+    id: country
+    attributes:
+      label: Country
+      placeholder: e.g. Pakistan
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: Courier's tracking page
+      placeholder: https://...
+    validations:
+      required: true
+  - type: input
+    id: format
+    attributes:
+      label: Tracking number format
+      description: Describe it, or give a made-up example with the same shape.
+      placeholder: e.g. 12 digits, or two letters followed by 10 digits like AB1234567890
+    validations:
+      required: true
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Testing
+      options:
+        - label: I can help test with a real parcel (shared privately, not in this issue).
