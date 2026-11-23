@@ -38,6 +38,7 @@ def seed(data_dir: Path) -> int:
         ("dex", "PK-DEX100000002", Stage.FAILED_ATTEMPT, "Unsuccessful delivery attempt [Multan]"),
         ("leopards", "AB1234567890", Stage.IN_TRANSIT, "Shipment Dispatched from KARACHI to MULTAN"),
         ("tcs", "1234567890", Stage.IN_CITY, "Arrived at TCS Facility [MULTAN]"),
+        ("trax", "12345678901234", Stage.OUT_FOR_DELIVERY, "Out for Delivery [Faisalabad]"),
     ]
     for carrier, number, stage, text in samples:
         s = store.add(carrier, number, "Smoke test")
