@@ -1,5 +1,5 @@
 name: Request a courier
-description: Ask for support for a courier ParcelPing doesn't track yet.
+description: Ask for support for a courier PingParcel doesn't track yet.
 labels: ["courier request"]
 body:
   - type: markdown

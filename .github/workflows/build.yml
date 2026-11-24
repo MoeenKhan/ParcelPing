@@ -1,6 +1,6 @@
 name: Build
 
-# Called by ci.yml. Lints, tests, builds and smoke-tests ParcelPing.exe, and
+# Called by ci.yml. Lints, tests, builds and smoke-tests PingParcel.exe, and
 # publishes it as a GitHub release when given a release tag.
 on:
   workflow_call:
@@ -33,24 +33,24 @@ jobs:
       - name: Test
         run: python -m pytest -q
 
-      - name: Build ParcelPing.exe
+      - name: Build PingParcel.exe
         run: python build.py
 
       - name: Smoke-test the .exe
-        run: python scripts/smoke_test.py dist/ParcelPing.exe
+        run: python scripts/smoke_test.py dist/PingParcel.exe
 
       - name: Checksum
         shell: bash
-        run: cd dist && sha256sum ParcelPing.exe > ParcelPing.exe.sha256 && cat ParcelPing.exe.sha256
+        run: cd dist && sha256sum PingParcel.exe > PingParcel.exe.sha256 && cat PingParcel.exe.sha256
 
       - name: Upload build
         uses: actions/upload-artifact@v7
         with:
           # PR refs contain "/", which artifact names can't, so use the run number.
-          name: ${{ inputs.release-tag && format('ParcelPing-{0}', inputs.release-tag) || format('ParcelPing-build-{0}', github.run_number) }}
+          name: ${{ inputs.release-tag && format('PingParcel-{0}', inputs.release-tag) || format('PingParcel-build-{0}', github.run_number) }}
           path: |
-            dist/ParcelPing.exe
-            dist/ParcelPing.exe.sha256
+            dist/PingParcel.exe
+            dist/PingParcel.exe.sha256
           retention-days: ${{ inputs.release-tag && 90 || 14 }}
           if-no-files-found: error
 
@@ -66,9 +66,9 @@ jobs:
           case "$TAG" in *-*) flags="--prerelease" ;; esac
           # Creates the tag on this commit as part of the release.
           gh release create "$TAG" \
-            dist/ParcelPing.exe dist/ParcelPing.exe.sha256 \
+            dist/PingParcel.exe dist/PingParcel.exe.sha256 \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "ParcelPing ${TAG#v}" \
+            --title "PingParcel ${TAG#v}" \
             --generate-notes \
             $flags

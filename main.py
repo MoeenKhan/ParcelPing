@@ -1,7 +1,7 @@
 """Entry point. Run with:  python main.py  [--minimized]
 
-ParcelPing - track parcels and get notified when they move.
-Copyright (C) 2026 ParcelPing contributors
+PingParcel - track parcels and get notified when they move.
+Copyright (C) 2026 PingParcel contributors
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -20,7 +20,7 @@ from PySide6.QtGui import QFont
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication
 
-from app import config, updates
+from app import autostart, config, updates
 from app.core.store import Store
 from app.ui.controller import Controller
 from app.ui.icon import app_icon
@@ -75,6 +75,7 @@ def main() -> int:
     QLocalServer.removeServer(_server_name())
     server = QLocalServer()
     server.listen(_server_name())
+    autostart.adopt_old_entry()  # after a rename, keep "Start with Windows" on
 
     controller = Controller(app, Store())
     server.newConnection.connect(lambda: (server.nextPendingConnection(), controller.show_window()))
@@ -82,7 +83,7 @@ def main() -> int:
     if "--minimized" not in sys.argv or controller.tray is None:
         controller.show_window()
     controller.start(just_updated="--updated" in sys.argv)
-    if os.environ.get("PARCELPING_SMOKE_TEST"):
+    if os.environ.get("PINGPARCEL_SMOKE_TEST"):
         # Used by CI on the built .exe: start fully, then quit cleanly.
         QTimer.singleShot(3000, controller.quit)
     return app.exec()

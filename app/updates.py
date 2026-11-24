@@ -2,10 +2,10 @@
 
 For the built .exe:
 1. latest_release() asks GitHub for the newest release.
-2. download() saves its ParcelPing.exe next to the running one, checks it
+2. download() saves its PingParcel.exe next to the running one, checks it
    against the release's published SHA-256 and that it is a Windows program,
-   and only then names it ParcelPing.new.exe.
-3. install() renames the running .exe to ParcelPing.old.exe (Windows allows
+   and only then names it PingParcel.new.exe.
+3. install() renames the running .exe to PingParcel.old.exe (Windows allows
    renaming a running program, not overwriting it), moves the new one into its
    place and starts it. The new copy waits for this one to exit.
 4. cleanup() on the next start deletes leftover .old/.new/.download files.
@@ -27,6 +27,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urljoin, urlsplit
 
 from . import __version__, config
 from .core.carriers.base import new_session
@@ -37,12 +38,13 @@ MIN_SIZE = 5_000_000  # the real .exe is ~30 MB; anything tiny is an error page
 
 def _repo_url() -> str:
     # Override for local end-to-end tests of the updater.
-    return (os.environ.get("PARCELPING_UPDATE_REPO_URL")
+    return (os.environ.get("PINGPARCEL_UPDATE_REPO_URL")
             or f"https://github.com/{config.GITHUB_REPO}").rstrip("/")
 
 
-# A release tag as it appears in the /releases/tag/<tag> redirect.
-_TAG = re.compile(r"/releases/tag/(v?\d+(?:\.\d+)*(?:-[0-9A-Za-z.]+)?)/?$")
+# Paths in GitHub's redirects: a release tag, or a renamed repo's /releases/latest.
+_TAG = re.compile(r"^/[\w.-]+/[\w.-]+/releases/tag/(v?\d+(?:\.\d+)*(?:-[0-9A-Za-z.]+)?)/?$")
+_LATEST = re.compile(r"^/[\w.-]+/[\w.-]+/releases/latest/?$")
 
 
 class UpdateError(Exception):
@@ -75,22 +77,36 @@ def latest_release(session=None) -> Release | None:
     """
     if not config.GITHUB_REPO:
         return None
-    repo = _repo_url()
+    url = f"{_repo_url()}/releases/latest"
+    host = urlsplit(url).netloc
     own = session is None
     session = session or new_session()
     try:
-        r = session.get(f"{repo}/releases/latest", allow_redirects=False, timeout=15,
-                        headers={"User-Agent": config.APP_NAME})
+        # Follow a renamed repo (old/releases/latest -> new/releases/latest),
+        # stopping at the redirect to the newest release's tag.
+        for _ in range(3):
+            r = session.get(url, allow_redirects=False, timeout=15, headers={"User-Agent": config.APP_NAME})
+            if r.status_code not in (301, 302, 303, 307, 308):
+                return None  # no releases yet, or GitHub unavailable
+            location = urljoin(url, r.headers.get("Location", ""))
+            if urlsplit(location).netloc != host:
+                return None  # only ever this site
+            m = _TAG.search(urlsplit(location).path)
+            if m:
+                break
+            if not _LATEST.search(urlsplit(location).path):
+                return None
+            url = location
+        else:
+            return None
     finally:
         if own:
             session.close()
-    if r.status_code not in (301, 302, 303, 307, 308):
-        return None  # no releases yet, or GitHub unavailable
-    m = _TAG.search(r.headers.get("Location", ""))
-    if not m or not is_newer(m.group(1)):
-        return None
     tag = m.group(1)
-    # Always this repo's own release files, built from the tag.
+    if not is_newer(tag):
+        return None
+    # The repo the tag belongs to (the new name, after a rename); files come from its releases.
+    repo = location[:location.rindex("/releases/tag/")]
     download = f"{repo}/releases/download/{tag}/{ASSET_NAME}"
     return Release(tag.lstrip("v"), f"{repo}/releases/tag/{tag}", download, f"{download}.sha256")
 
@@ -123,7 +139,7 @@ def can_self_update(release: Release, exe: Path | None = None) -> bool:
 
 
 def download(release: Release, exe: Path | None = None, session=None) -> Path:
-    """Download and verify the new .exe; returns its path (ParcelPing.new.exe)."""
+    """Download and verify the new .exe; returns its path (PingParcel.new.exe)."""
     exe = exe or current_exe()
     if exe is None:
         raise UpdateError("not running as an .exe")
