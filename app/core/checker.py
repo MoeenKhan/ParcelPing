@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 
 import requests
 
-from .carriers import CARRIERS, TrackingEvent
+from .carriers import CARRIERS, TrackingEvent, candidates
 from .stages import Stage
 from .store import Shipment, Store
 
@@ -45,12 +45,27 @@ def friendly_error(carrier_name: str, exc: Exception) -> str:
     return f"Couldn't read {carrier_name}'s tracking page"
 
 
-def fetch(shipment_id: int, carrier: str, number: str) -> FetchResult:
+def fetch(shipment_id: int, carrier: str, number: str, found_before: bool = True) -> FetchResult:
+    """Ask the parcel's courier. Until a parcel has been found once, also ask
+    the other couriers whose number format fits (some share one, like Trax
+    and PostEx); a result from one of them has that courier as its carrier."""
     mod = CARRIERS[carrier]
     try:
-        return FetchResult(shipment_id, carrier, events=mod.fetch_events(number))
+        result = FetchResult(shipment_id, carrier, events=mod.fetch_events(number))
     except Exception as e:  # noqa: BLE001 - any failure is reported, never fatal
-        return FetchResult(shipment_id, carrier, error=friendly_error(mod.NAME, e))
+        result = FetchResult(shipment_id, carrier, error=friendly_error(mod.NAME, e))
+    if result.events or found_before:
+        return result
+    for other in candidates(number):
+        if other == carrier:
+            continue
+        try:
+            events = CARRIERS[other].fetch_events(number)
+        except Exception:  # noqa: BLE001 - only a hint; the main result stands
+            continue
+        if events:
+            return FetchResult(shipment_id, other, events=events)
+    return result
 
 
 def apply_result(store: Store, result: FetchResult, now: datetime) -> Change | None:
@@ -69,6 +84,12 @@ def apply_result(store: Store, result: FetchResult, now: datetime) -> Change | N
         # courier's side shouldn't wipe history.
         store.save_checked(before.id, now)
         return None
+
+    if result.carrier != before.carrier:
+        # Found at another courier with the same number format: it's theirs.
+        if not store.set_carrier(before.id, result.carrier):
+            store.save_checked(before.id, now)  # already tracked there separately
+            return None
 
     store.save_events(before.id, events, now)
     after = store.get(before.id)

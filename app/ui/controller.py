@@ -178,18 +178,18 @@ class Controller(QObject):
             return
         self.running = True
         self.progress = (0, len(batch))
-        items = [(s.id, s.carrier, s.number) for s in batch]
+        items = [(s.id, s.carrier, s.number, bool(s.events)) for s in batch]
         threading.Thread(target=self._work, args=(items,), daemon=True).start()
         self._update_status()
 
-    def _work(self, items: list[tuple[int, str, str]]) -> None:
+    def _work(self, items: list[tuple[int, str, str, bool]]) -> None:
         """Background thread: network only, results go back via signals."""
         failed: set[str] = set()
-        for sid, carrier, number in items:
+        for sid, carrier, number, found_before in items:
             if carrier in failed:
                 self.sig.result.emit(FetchResult(sid, carrier, skipped=True))
                 continue
-            r = fetch(sid, carrier, number)
+            r = fetch(sid, carrier, number, found_before)
             if r.error:
                 failed.add(carrier)
             self.sig.result.emit(r)

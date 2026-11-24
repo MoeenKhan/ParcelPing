@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import config
-from ..core.carriers import CARRIERS, detect, split_numbers
+from ..core.carriers import CARRIERS, candidates, detect, split_numbers
 from ..core.store import ACTIVE, DELIVERED, PROBLEMS, DuplicateShipment, Shipment
 from .icon import app_icon
 from .widgets import Badge, PasteLineEdit, ShipmentCard
@@ -253,12 +253,17 @@ class MainWindow(QMainWindow):
         if not numbers:
             self.detected.hide()
             return
+        self.detected.setToolTip("")
         if len(numbers) > 1:
             self.detected.set_badge(f"{len(numbers)} numbers", "#687180")
         else:
-            key = forced or detect(numbers[0])
-            if key:
-                self.detected.set_badge(CARRIERS[key].NAME, CARRIERS[key].BADGE_COLOR)
+            keys = [forced] if forced else candidates(numbers[0])
+            if len(keys) == 1:
+                self.detected.set_badge(CARRIERS[keys[0]].NAME, CARRIERS[keys[0]].BADGE_COLOR)
+            elif keys:
+                self.detected.set_badge(" or ".join(CARRIERS[k].NAME for k in keys), "#687180")
+                self.detected.setToolTip("These couriers use the same number format. PingParcel checks "
+                                         "which one has the parcel.")
             else:
                 self.detected.set_badge("Courier?", "#C93C3C")
                 self.detected.setToolTip("Couldn't recognise this number. Pick the courier from the list.")
