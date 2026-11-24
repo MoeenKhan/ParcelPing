@@ -1,7 +1,9 @@
 """Carrier registry.
 
 To add a courier: create carriers/<name>.py following the contract in
-base.py, then add it to CARRIERS below.
+base.py, then add it to CARRIERS below. When two couriers share a number
+format, the first listed is tried first; the checker then finds out which
+one actually has the parcel (see checker.fetch).
 """
 
 from __future__ import annotations
@@ -9,7 +11,7 @@ from __future__ import annotations
 import re
 from types import ModuleType
 
-from . import dex, leopards, tcs, trax
+from . import dex, leopards, postex, tcs, trax
 from .base import TrackingEvent
 
 CARRIERS: dict[str, ModuleType] = {
@@ -17,15 +19,19 @@ CARRIERS: dict[str, ModuleType] = {
     "dex": dex,
     "tcs": tcs,
     "trax": trax,
+    "postex": postex,
 }
 
 
+def candidates(number: str) -> list[str]:
+    """Every courier whose number format fits, in CARRIERS order."""
+    return [key for key, mod in CARRIERS.items() if mod.NUMBER_PATTERN.match(number)]
+
+
 def detect(number: str) -> str | None:
-    """Guess the carrier key from the number's format."""
-    for key, mod in CARRIERS.items():
-        if mod.NUMBER_PATTERN.match(number):
-            return key
-    return None
+    """Best guess at the courier from the number's format."""
+    found = candidates(number)
+    return found[0] if found else None
 
 
 def split_numbers(text: str) -> list[str]:
@@ -39,4 +45,4 @@ def split_numbers(text: str) -> list[str]:
     return list(seen)
 
 
-__all__ = ["CARRIERS", "TrackingEvent", "detect", "split_numbers"]
+__all__ = ["CARRIERS", "TrackingEvent", "candidates", "detect", "split_numbers"]

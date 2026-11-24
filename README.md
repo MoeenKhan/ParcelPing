@@ -19,8 +19,11 @@ anything changes. It lives in the system tray and checks in the background.
 | DEX (Daraz Express) | Pakistan |
 | TCS | Pakistan |
 | Trax (Sonic) | Pakistan |
+| PostEx | Pakistan |
 
 More couriers can be added; see [Adding a courier](#adding-a-courier).
+Trax and PostEx use the same 14-digit number format; PingParcel checks which
+of them has the parcel the first time it looks it up.
 
 ## Using it
 

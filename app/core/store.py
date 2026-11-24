@@ -158,6 +158,16 @@ class Store:
         self.db.execute("UPDATE shipments SET nickname = ? WHERE id = ?", (nickname.strip(), shipment_id))
         self.db.commit()
 
+    def set_carrier(self, shipment_id: int, carrier: str) -> bool:
+        """Move a parcel to another courier. False if it's already tracked there."""
+        try:
+            self.db.execute("UPDATE shipments SET carrier = ? WHERE id = ?", (carrier, shipment_id))
+            self.db.commit()
+            return True
+        except sqlite3.IntegrityError:
+            self.db.rollback()
+            return False
+
     def remove(self, shipment_id: int) -> None:
         self.db.execute("DELETE FROM shipments WHERE id = ?", (shipment_id,))
         self.db.commit()
