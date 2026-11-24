@@ -1,14 +1,14 @@
-# ParcelPing
+# PingParcel
 
 Track all your parcels in one place and get a Windows notification when
 anything changes. It lives in the system tray and checks in the background.
 
 <p>
-  <img src="docs/screenshots/main-light.png" width="400" alt="ParcelPing main window: parcels with progress bars">
+  <img src="docs/screenshots/main-light.png" width="400" alt="PingParcel main window: parcels with progress bars">
   <img src="docs/screenshots/details-dark.png" width="370" alt="A parcel's full tracking history in dark mode">
 </p>
 
-**[Download the latest ParcelPing.exe](https://github.com/MoeenKhan/ParcelPing/releases/latest)**
+**[Download the latest PingParcel.exe](https://github.com/MoeenKhan/PingParcel/releases/latest)**
 (Windows 10/11, no installation needed)
 
 **Supported couriers:**
@@ -24,10 +24,10 @@ More couriers can be added; see [Adding a courier](#adding-a-courier).
 
 ## Using it
 
-1. [Download](https://github.com/MoeenKhan/ParcelPing/releases/latest) and run `ParcelPing.exe`.
+1. [Download](https://github.com/MoeenKhan/PingParcel/releases/latest) and run `PingParcel.exe`.
 2. Paste a tracking number (or several, one per line) into the box at the top.
    The courier is detected automatically. Add a nickname if you like.
-3. Close the window. ParcelPing keeps checking from the tray and notifies you
+3. Close the window. PingParcel keeps checking from the tray and notifies you
    when a parcel moves. Click a notification to see that parcel's history.
 
 - **Active:** parcels on the way, plus ones delivered in the last 3 days
@@ -41,11 +41,11 @@ starting with Windows.
 
 ### Updates
 
-ParcelPing checks for a new version once a day and downloads it in the
+PingParcel checks for a new version once a day and downloads it in the
 background. It checks the download against the release's published SHA-256
 checksum before using it. Then it shows **Restart to update**. Turn on
 *Install them automatically* in Settings to have it update itself while the
-window is closed. If ParcelPing is in a folder it can't write to (like
+window is closed. If PingParcel is in a folder it can't write to (like
 Program Files), it links to the download page instead.
 
 ### Windows SmartScreen warning
@@ -55,15 +55,19 @@ PC" the first time. Click **More info → Run anyway**.
 
 ### Where your data lives
 
-`%APPDATA%\ParcelPing\parcels.db`. For a portable setup (e.g. on a USB
+`%APPDATA%\PingParcel\parcels.db`. For a portable setup (e.g. on a USB
 stick), create an empty file named `portable` next to the .exe; data is then
 kept in a `data` folder beside it.
+
+PingParcel was called *ParcelPing* before version 1.3.0. On first start it
+copies your parcels and settings over from `%APPDATA%\ParcelPing` (the old
+folder is left as a backup) and keeps *Start with Windows* on if it was.
 
 ## Development
 
 ```bat
 run.bat          :: run from source (creates venv, installs deps)
-build.bat        :: run tests and build dist\ParcelPing.exe
+build.bat        :: run tests and build dist\PingParcel.exe
 ```
 
 Or manually:
@@ -75,7 +79,7 @@ venv\Scripts\python -m ruff check .
 venv\Scripts\python -m pytest
 venv\Scripts\python main.py
 venv\Scripts\python build.py
-venv\Scripts\python scripts\smoke_test.py dist\ParcelPing.exe
+venv\Scripts\python scripts\smoke_test.py dist\PingParcel.exe
 ```
 
 Every push and pull request runs the same steps on GitHub Actions (lint,
@@ -87,7 +91,7 @@ quits cleanly). The built .exe is attached to each finished run under
 
 Releases are automatic. Bump `__version__` in `app/__init__.py` (e.g. to
 `1.0.1`) and push to `main`. When CI sees a version that hasn't been released
-yet, it tags the commit and publishes `ParcelPing.exe` with its SHA-256
+yet, it tags the commit and publishes `PingParcel.exe` with its SHA-256
 checksum on the Releases page, with notes generated from the changes since the
 last release. Pushes that don't change the version only build and test.
 Versions with a suffix, like `1.1.0-beta.1`, are published as pre-releases.
@@ -118,9 +122,9 @@ tracking numbers) with made-up values before committing.
 
 ## License
 
-Copyright (C) 2026 ParcelPing contributors
+Copyright (C) 2026 PingParcel contributors
 
-ParcelPing is free software: you can redistribute it and/or modify it under
+PingParcel is free software: you can redistribute it and/or modify it under
 the terms of the [GNU General Public License v3.0](LICENSE) (or, at your
 option, any later version). Versions you distribute must stay open source
 under the same license.
@@ -131,9 +135,9 @@ Beautiful Soup (MIT). All are compatible with the GPL v3.
 
 ## Disclaimer
 
-ParcelPing is an independent project. It is not affiliated with, endorsed by,
+PingParcel is an independent project. It is not affiliated with, endorsed by,
 or sponsored by any courier it supports. Courier names are trademarks of their
-respective owners and are used only to identify which services ParcelPing can
-track. ParcelPing reads the same public tracking pages you would open in a
+respective owners and are used only to identify which services PingParcel can
+track. PingParcel reads the same public tracking pages you would open in a
 browser, and checks no more often than every few minutes to keep the load on
 courier sites light.

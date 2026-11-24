@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -31,6 +32,33 @@ def is_enabled() -> bool:
             return True
     except OSError:
         return False
+
+
+def adopt_old_entry() -> None:
+    """First start after a rename: replace the old name's "Start with Windows"
+    entry with one for this copy, so it's on if it was on before.
+
+    Only for the built .exe in normal use; test runs (with a data-folder
+    override) and runs from source never touch the real registry entry.
+    """
+    if sys.platform != "win32" or not getattr(sys, "frozen", False):
+        return
+    if os.environ.get("PINGPARCEL_DATA_DIR"):
+        return
+    import winreg
+
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _KEY, 0,
+                            winreg.KEY_QUERY_VALUE | winreg.KEY_SET_VALUE) as k:
+            for old_name in config.OLD_APP_NAMES:
+                try:
+                    winreg.QueryValueEx(k, old_name)
+                except FileNotFoundError:
+                    continue
+                winreg.DeleteValue(k, old_name)
+                winreg.SetValueEx(k, config.APP_NAME, 0, winreg.REG_SZ, command())
+    except OSError:
+        pass  # not worth failing start-up over
 
 
 def set_enabled(enabled: bool) -> None:

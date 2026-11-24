@@ -1,6 +1,6 @@
-"""Start a built ParcelPing.exe and check it runs: window, parcels, clean exit.
+"""Start a built PingParcel.exe and check it runs: window, parcels, clean exit.
 
-    python scripts/smoke_test.py dist/ParcelPing.exe
+    python scripts/smoke_test.py dist/PingParcel.exe
 
 Uses a throwaway data folder with made-up parcels and checking paused, so it
 needs no network and never touches your real data. Fails if the app crashes,
@@ -23,7 +23,7 @@ TIMEOUT = 90
 
 
 def seed(data_dir: Path) -> int:
-    os.environ["PARCELPING_DATA_DIR"] = str(data_dir)
+    os.environ["PINGPARCEL_DATA_DIR"] = str(data_dir)
     from app.core.carriers.base import TrackingEvent
     from app.core.stages import Stage
     from app.core.store import Store
@@ -56,9 +56,9 @@ def main() -> int:
         data = Path(tmp) / "data"
         data.mkdir()
         expected = seed(data)
-        env = {**os.environ, "PARCELPING_DATA_DIR": str(data), "PARCELPING_SMOKE_TEST": "1",
+        env = {**os.environ, "PINGPARCEL_DATA_DIR": str(data), "PINGPARCEL_SMOKE_TEST": "1",
                # Own single-instance name, so a copy you have running isn't reused.
-               "USERNAME": "parcelping-smoke-test"}
+               "USERNAME": "pingparcel-smoke-test"}
         print(f"starting {exe.name} ({exe.stat().st_size / 1e6:.1f} MB)")
         proc = subprocess.Popen([str(exe)], env=env)
         try:

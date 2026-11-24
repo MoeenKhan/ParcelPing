@@ -1,5 +1,5 @@
 @echo off
-rem Builds dist\ParcelPing.exe (single portable file).
+rem Builds dist\PingParcel.exe (single portable file).
 cd /d "%~dp0"
 
 if not exist "venv\Scripts\python.exe" (
